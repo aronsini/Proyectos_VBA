@@ -1,0 +1,459 @@
+Option Explicit
+
+'#############################################################################################
+'#----------------------------------ENUMERADORES Y CONSTANTES--------------------------------#
+'#############################################################################################
+
+'Declaración de variables relacionadas con nuestra URL
+Private Const GIT_HUB_TOKEN As String = "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"
+Private Const GIT_HUB_REPOSITORIO As String = "Proyectos_VBA"
+Private Const GIT_HUB_USUARIO As String = "aronsini"
+
+Enum GH_BodyLabels
+    ghName
+    ghPath
+    ghSha
+    ghSize
+    ghUrl
+    ghHtmlUrl
+    ghGitUrl
+    ghDownloadUrl
+    ghType
+    ghContent = 9
+    ghEncoding
+End Enum
+
+'#############################################################################################
+'#----------------------------------PRUEBAS Y DESARROLLO-------------------------------------#
+'#############################################################################################
+
+Sub SubirModulo()
+    
+    Dim strModuleName As String
+    Dim wbLibro As Workbook
+    
+    Set wbLibro = ThisWorkbook
+    strModuleName = "VBA_to_GitHub"
+    
+    GH_PutRepositoryFile GH_GetFileURL(GIT_HUB_USUARIO, GIT_HUB_REPOSITORIO, strModuleName), _
+                         Vba_GetModuleEncoded(strModuleName, wbLibro), _
+                         GIT_HUB_TOKEN, _
+                         "Subiendo módulo -- " & strModuleName
+    
+    
+    'Revisar si existe en github
+    '   confirmacion
+    'subir
+    'upload this module to github
+    
+    'for each file in gh repo, look at name
+    
+'
+'    Application.VBE.ActiveCodePane.CodeModule
+'
+'
+'    Dim vbProj As VBIDE.VBProject
+'    Dim vbComp As VBIDE.VBComponent
+'    Dim vbModule As VBIDE.CodeModule
+'    Dim strURL As String
+'
+'    Set vbProj = wbWorkbook.VBProject
+'
+'    For Each vbComp In vbProj.VBComponents
+'        if vbcomp.Name =
+'    Next vbComp
+'    GH_PutRepositoryFile
+' GH_PutRepositoryFile(ByVal ghFullUrl As String, _
+'                         ByVal ghEncode64 As String, _
+'                         ByVal ghToken As String, _
+'                         ByVal ghMessage As String)
+End Sub
+
+    
+''    'upload this module to github
+''
+''    Dim vbProj As VBIDE.VBProject
+''    Dim vbComp As VBIDE.VBComponent
+''    Dim vbModule As VBIDE.CodeModule
+''    Dim strURL As String
+''
+''    Set vbProj = wbWorkbook.VBProject
+''
+''    For Each vbComp In vbProj.VBComponents
+''        if vbcomp.Name =
+''    Next vbComp
+'''    GH_PutRepositoryFile
+''' GH_PutRepositoryFile(ByVal ghFullUrl As String, _
+'''                         ByVal ghEncode64 As String, _
+'''                         ByVal ghToken As String, _
+'''                         ByVal ghMessage As String)
+
+''Pruebas funcionales
+'Sub Pruebas()
+'
+'    Dim strModuleName As String
+'    Dim strGH_FileName As String
+'    Dim strGH_Message As String
+'    strModuleName = "Formatos"
+'    strGH_FileName = strModuleName & ".vb"
+'    strGH_Message = "Prueba módulo " & strModuleName
+'
+'    'Obtención de módulos
+'    Dim strVBA_Module As String
+'    strVBA_Module = Vba_GetModuleCode(strModuleName)
+'    Dim strVBA_Module64 As String
+'    strVBA_Module64 = Vba_GetModuleEncoded(strModuleName)
+'
+'    'Creación de URL
+'    Dim strGH_URL As String
+'    strGH_URL = GH_GetFileURL(GIT_HUB_USUARIO, GIT_HUB_REPOSITORIO, strGH_FileName)    'OK
+'
+'    'Subir un módulo como archivo a GitHub
+'    GH_PutRepositoryFile strGH_URL, strVBA_Module64, GIT_HUB_TOKEN, strGH_Message & " Upload"  'OK
+'
+'    'Actualizar archivo que subimos, agregando una línea inicial al string
+'    strVBA_Module64 = EncodeBase64("'ESTA LÍNEA SOLO SE AGREGA COMO PRUEBA DE ACTUALIZACIÓN" & vbLf & strVBA_Module)
+'    GH_UpdateRepositoryFile strGH_URL, strVBA_Module64, GIT_HUB_TOKEN, strGH_Message & " Update" 'OK
+'
+'    'Recuperar contenido de un archivo de GitHub
+'    Dim strGH_Content As String
+'    strGH_Content = GH_GetRepositoryFileCode(strGH_URL)
+'
+'    'Creamos el módulo en VBA
+'    Vba_AddGitModule strGH_URL, ThisWorkbook
+'
+'    'Borramos el archivo GitHub
+'    GH_DeleteRepositoryFile strGH_URL, GIT_HUB_TOKEN, strGH_Message & " Delete"
+'
+'End Sub
+
+'#############################################################################################
+'#----------------------------------PROCEDIMIENTOS Y FUNCIONES-------------------------------#
+'#############################################################################################
+
+Sub Vba_AddGitModule(ByVal ghFileUrl As String, _
+                     Optional ByVal wbWorkbook As Workbook)
+                                 
+    'Definición de variables a usar
+    Dim vbProj As VBIDE.VBProject
+    Dim strName As String
+    Dim strContent As String
+    
+    'Asignamos proyecto y variables de nombre y contenido
+    Set vbProj = Vba_GetProject(wbWorkbook)
+    strName = Replace(Replace(Replace(GH_GetFileParameter(ghFileUrl, ghName), "{", ""), ".vb", ""), " ", "_")
+    strContent = GH_GetRepositoryFileCode(ghFileUrl)
+    
+    'Requerido para evitar alertas al escribir mientras se ejecuta el código
+    On Error Resume Next
+    
+    With vbProj
+        'Agregamos módulo
+        With .VBComponents.Add(vbext_ct_StdModule)
+            'Asignamos nombre, borramos cualquier dato contenido (options) y agregamos el codigo que obtibimos de GitHub
+            .Name = strName
+            .CodeModule.DeleteLines 1, .CodeModule.CountOfLines
+            .CodeModule.AddFromString (strContent)
+        End With
+    End With
+    
+    Set vbProj = Nothing
+
+End Sub
+
+Function GH_GetFileURL(ByVal ghUsername As String, _
+                       ByVal ghRepository As String, _
+                       ByVal ghFileName As String) As String
+    
+    GH_GetFileURL = "https://api.github.com/repos/" & ghUsername & "/" & ghRepository & "/contents/" & ghFileName
+    
+End Function
+
+Private Function GetGitBodyLabel(ByVal strBodyLAbel As GH_BodyLabels) As String
+
+    Select Case strBodyLAbel
+        Case GH_BodyLabels.ghName
+            GetGitBodyLabel = """name"":"
+        Case GH_BodyLabels.ghPath
+            GetGitBodyLabel = """path"":"
+        Case GH_BodyLabels.ghSha
+            GetGitBodyLabel = """sha"":"
+        Case GH_BodyLabels.ghSize
+            GetGitBodyLabel = """size"":"
+        Case GH_BodyLabels.ghUrl
+            GetGitBodyLabel = """url"":"
+        Case GH_BodyLabels.ghHtmlUrl
+            GetGitBodyLabel = """html_url"":"
+        Case GH_BodyLabels.ghGitUrl
+            GetGitBodyLabel = """git_url"":"
+        Case GH_BodyLabels.ghDownloadUrl
+            GetGitBodyLabel = """download_url"":"
+        Case GH_BodyLabels.ghType
+            GetGitBodyLabel = """type"":"
+        Case GH_BodyLabels.ghContent
+            GetGitBodyLabel = """content"":"
+        Case GH_BodyLabels.ghEncoding
+            GetGitBodyLabel = """encoding"":"
+    End Select
+
+End Function
+
+Sub GH_DeleteRepositoryFile(ByVal ghFileUrl As String, _
+                            ByVal ghToken As String, _
+                            ByVal ghMessage As String)
+
+    'Declaración de variables
+    Dim objXML As MSXML2.XMLHTTP60
+    Dim ghBodyLoad As String
+    Dim ghFileSha As String
+
+    'Creacion del cuerpo de la petición
+    ghFileSha = GH_GetFileParameter(ghFileUrl, ghSha)
+    ghBodyLoad = "{""message"": """ & ghMessage & """, "
+    ghBodyLoad = ghBodyLoad & """sha"": """ & ghFileSha & """}"
+    
+    'Abriendo una nueva petición, asignación de encabezados y envío
+    Set objXML = New MSXML2.XMLHTTP60
+    objXML.Open bstrMethod:="DELETE", bstrURL:=ghFileUrl & "?ref=master", varAsync:=True
+    objXML.setRequestHeader bstrHeader:="Accept", bstrValue:="application/vnd.github.v3+json"
+    objXML.setRequestHeader bstrHeader:="Authorization", bstrValue:="token " & ghToken
+    objXML.send varBody:=ghBodyLoad
+    
+    'Esperar a que termine
+    While objXML.readyState <> 4
+        DoEvents
+    Wend
+    
+    Debug.Print "########################"
+    Debug.Print "GH_DeleteRepositoryFile Results" & vbLf & "########################"
+    Debug.Print ghFileUrl
+    Debug.Print "Response: " & objXML.responseText
+    Debug.Print "STATUS: " & objXML.statusText & vbLf & "########################"
+    
+End Sub
+
+Function GH_GetRepositoryFileCode(ByVal ghFileUrl As String) As String
+
+    Dim strRes As String
+    
+    'Obtenemos contenido del archivo GitHub
+    strRes = GH_GetFileParameter(ghFileUrl, ghContent)
+    'Reemplazamos saltos de línea por strings vacios
+    strRes = Replace(strRes, "\n", "")
+    'Decodificamos base64 a utf-8
+    strRes = DecodeBase64(strRes)
+    
+    GH_GetRepositoryFileCode = strRes
+    
+End Function
+
+Function GH_GetFileParameter(ByVal ghFileUrl As String, _
+                             ByVal ghLabel As GH_BodyLabels) As String
+    
+    Dim strLabel As String
+    Dim arrRes As Variant
+    Dim i As Long
+    Dim objXML As MSXML2.XMLHTTP60
+    
+    'Creamos objeto XML y obtenemos mandamos URL del archivo como GET
+    Set objXML = New MSXML2.XMLHTTP60
+    objXML.Open bstrMethod:="GET", bstrURL:=ghFileUrl, varAsync:=False
+    objXML.send
+    
+    'Transformo en un array la respuesta de la página separado por "," que al parecer representa un salto de línea
+    arrRes = Split(StrConv(objXML.responseBody, vbUnicode), ",")
+    
+    'Asigno el string correspondiente a la etiqueta buscada
+    strLabel = GetGitBodyLabel(ghLabel)
+    
+    'Iteración sobre saltos de línea hasta encontrar aquella que tiene la etiqueta deseada
+    For i = LBound(arrRes) To UBound(arrRes)
+        If InStr(1, arrRes(i), strLabel) > 0 Then
+            'Remplazo etiqueta de línea y comillas para limpiar string
+            GH_GetFileParameter = Replace(Replace(arrRes(i), """", ""), Replace(strLabel, """", ""), "")
+            Exit Function
+        End If
+    Next i
+    
+    'Si no es encontrada la etiqueta del SHA devuelvo el siguiente mensaje
+    GH_GetFileParameter = "The following label could not be found: " & strLabel
+    
+End Function
+
+Sub GH_UpdateRepositoryFile(ByVal ghFileUrl As String, _
+                            ByVal ghEncode64 As String, _
+                            ByVal ghToken As String, _
+                            ByVal ghMessage As String)
+
+    'Declaración de variables
+    Dim objXML As MSXML2.XMLHTTP60
+    Dim ghBodyLoad As String
+    Dim ghFileSha As String
+
+    'Creacion del cuerpo de la petición
+    ghFileSha = GH_GetFileParameter(ghFileUrl, ghSha)
+    ghBodyLoad = "{""message"": """ & ghMessage & """, "
+    ghBodyLoad = ghBodyLoad & """content"":""" & ghEncode64 & """, "
+    ghBodyLoad = ghBodyLoad & """sha"": """ & ghFileSha & """}"
+    
+    'Abriendo una nueva petición, asignación de encabezados y envío
+    Set objXML = New MSXML2.XMLHTTP60
+    objXML.Open bstrMethod:="PUT", bstrURL:=ghFileUrl & "?ref=master", varAsync:=True
+    objXML.setRequestHeader bstrHeader:="Accept", bstrValue:="application/vnd.github.v3+json"
+    objXML.setRequestHeader bstrHeader:="Authorization", bstrValue:="token " & ghToken
+    objXML.send varBody:=ghBodyLoad
+    
+    'Esperar a que termine
+    While objXML.readyState <> 4
+        DoEvents
+    Wend
+    
+    Debug.Print "########################"
+    Debug.Print "GH_UpdateRepositoryFile Results" & vbLf & "########################"
+    Debug.Print ghFileUrl
+    Debug.Print "Response: " & objXML.responseText
+    Debug.Print "STATUS: " & objXML.statusText & vbLf & "########################"
+    
+End Sub
+
+Sub GH_PutRepositoryFile(ByVal ghFullUrl As String, _
+                         ByVal ghEncode64 As String, _
+                         ByVal ghToken As String, _
+                         ByVal ghMessage As String)
+
+    'Declaración de variables relacionadas con la petición HTTP
+    Dim objXML As MSXML2.XMLHTTP60
+    Dim ghBodyLoad As String
+    
+    'Definir nuestro objeto XML y carga que sera enviada
+    Set objXML = New MSXML2.XMLHTTP60
+    ghBodyLoad = "{""message"": """ & ghMessage & """, ""content"":"""
+    ghBodyLoad = ghBodyLoad & ghEncode64
+    ghBodyLoad = ghBodyLoad & """}"
+    
+    'Abriendo una nueva petición y asignamos encabezados
+    objXML.Open bstrMethod:="PUT", bstrURL:=ghFullUrl & "?ref=master", varAsync:=True
+    objXML.setRequestHeader bstrHeader:="Accept", bstrValue:="application/vnd.github.v3+json"
+    objXML.setRequestHeader bstrHeader:="Authorization", bstrValue:="token " & ghToken
+    
+    'Enviar la petición
+    objXML.send varBody:=ghBodyLoad
+    
+    'Esperar a que termine
+    While objXML.readyState <> 4
+        DoEvents
+    Wend
+    
+    Debug.Print "########################"
+    Debug.Print "GH_PutRepositoryFile Results" & vbLf & "########################"
+    Debug.Print ghFullUrl
+    Debug.Print "Response: " & objXML.responseText
+    Debug.Print "STATUS: " & objXML.statusText & vbLf & "########################"
+    
+End Sub
+
+Function EncodeBase64(ByVal strText As String) As String
+    
+    Dim arrTextBytes As Variant
+    
+    With CreateObject("ADODB.Stream")
+        .Open
+        .Type = 2
+        .Charset = "utf-8"
+        .WriteText strText
+        .Position = 0
+        .Type = 1
+        arrTextBytes = .Read
+        With CreateObject("Microsoft.XMLDOM").createElement("b64")
+            .DataType = "bin.base64"
+            .nodeTypedValue = arrTextBytes
+            EncodeBase64 = Replace(Mid(.text, 5), vbLf, "")
+        End With
+        .Close
+    End With
+
+End Function
+
+Function DecodeBase64(ByVal strText As String) As String
+
+    Dim arrTextBytes As Variant
+    
+    With CreateObject("Microsoft.XMLDOM").createElement("b64")
+        .DataType = "bin.base64":
+        .text = strText
+        arrTextBytes = .nodeTypedValue
+        With CreateObject("ADODB.Stream")
+            .Open
+            .Type = 1
+            .Write arrTextBytes
+            .Position = 0
+            .Type = 2
+            .Charset = "utf-8"
+            DecodeBase64 = .ReadText
+            .Close
+        End With
+    End With
+    
+End Function
+
+Function Vba_GetModuleEncoded(ByVal strModuleName As String, _
+                              Optional ByVal wbLibro As Workbook) As String
+                                  
+    Dim strModuleCode As String
+    
+    'Obtengo código del módulo
+    strModuleCode = Vba_GetModuleCode(strModuleName, wbLibro)
+    'Devuelvo el código ya codificado en base 64
+    Vba_GetModuleEncoded = EncodeBase64(strModuleCode)
+                                  
+End Function
+
+Function Vba_GetProcedureCode(ByVal vbModule As VBIDE.CodeModule, _
+                              ByVal strProcedureName As String) As String
+    'Desde el objeto módulo, extrae las lineas de donde comienza el precedimiento hasta el número de líneas que contiene
+    With vbModule
+        Vba_GetProcedureCode = .Lines(.ProcStartLine(strProcedureName, vbext_pk_Proc), _
+                                      .ProcCountLines(strProcedureName, vbext_pk_Proc))
+    End With
+    
+End Function
+
+Function Vba_GetModule(ByVal strModuleName As String, _
+                       Optional ByVal wbWorkbook As Workbook) As VBIDE.CodeModule
+                       
+    Dim vbProj As VBIDE.VBProject
+    
+    'Asigno el proyecto contenedor
+    Set vbProj = Vba_GetProject(wbWorkbook)
+    'Obtengo el módulo solicitado
+    Set Vba_GetModule = vbProj.VBComponents.Item(strModuleName).CodeModule
+    
+End Function
+
+Function Vba_GetProject(Optional ByVal wbWorkbook As Workbook) As VBIDE.VBProject
+
+    Dim VBAEditor As VBIDE.VBE
+    
+    'Referencia al editor de visual basic, APAGAR SEGURIDAD DE MACROS!
+    Set VBAEditor = Application.VBE
+    
+    'Tomar el proyecto de visual basic relacionado con nuestro libro, si no esta definido lo hace desde libro de macros personales
+    If wbWorkbook Is Nothing Then
+        Set Vba_GetProject = VBAEditor.VBProjects(1)
+    Else
+        Set Vba_GetProject = wbWorkbook.VBProject
+    End If
+    
+End Function
+
+Function Vba_GetModuleCode(ByVal strModuleName As String, _
+                           Optional ByVal wbWorkbook As Workbook) As String
+                           
+    Dim vbModule As VBIDE.CodeModule
+    
+    'Asigno el módulo que quiero extraer
+    Set vbModule = Vba_GetModule(strModuleName, wbWorkbook)
+    'Devuelvo las líneas de codigo del módulo solicitado
+    Vba_GetModuleCode = vbModule.Lines(1, vbModule.CountOfLines)
+    
+End Function
